@@ -1,0 +1,509 @@
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(ggpubr)
+library(lubridate)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+
+External_growth_data <- read.csv("External_growth_data.csv")
+External_inner_data <- read.csv("External_inner_data.csv")
+External_price_data <- read.csv("External_price_data.csv")
+External_yield_data <- read.csv("External_yield_data.csv")
+Growth_yield_data <- read.csv("Growth_yield_data.csv")
+Inner_growth_data <- read.csv("Inner_growth_data.csv")
+Inner_price_data <- read.csv("Inner_price_data.csv")
+Inner_yield_data <- read.csv("Inner_yield_data.csv")
+
+
+
+# Long form 바꾸기 -----------------------------------------------------------
+
+
+# 1. 병합 시작
+merged_data <- External_growth_data  %>%
+  full_join(External_inner_data, by = c("FARM_ID", "MSRM_DT", "AREA_NM")) %>%
+  full_join(External_price_data, by = c("FARM_ID", "MSRM_DT", "AREA_NM")) %>%
+  full_join(External_yield_data, by = c("FARM_ID", "MSRM_DT", "AREA_NM")) %>%
+  full_join(Growth_yield_data, by = c("FARM_ID", "MSRM_DT", "AREA_NM")) %>%
+  full_join(Inner_price_data, by = c("FARM_ID", "MSRM_DT", "AREA_NM")) %>%
+  full_join(Inner_yield_data, by = c("FARM_ID", "MSRM_DT", "AREA_NM")) %>%
+  full_join(Inner_growth_data, by = c("FARM_ID", "MSRM_DT", "AREA_NM"))
+
+
+# 중복된 열 이름을 고유하게 변경
+colnames(merged_data) <- make.names(colnames(merged_data), unique = TRUE)
+
+sort(colnames(merged_data))
+
+# 고유한 열 이름 확인
+unique(c(colnames(External_growth_data), colnames(External_inner_data), colnames(External_price_data),
+         colnames(External_yield_data), colnames(Growth_yield_data ), colnames(Inner_growth_data),
+         colnames(Inner_price_data), colnames(Inner_yield_data)))
+
+
+# .x와 .y로 나뉜 열들을 coalesce로 합치기
+merged_data_cleaned <- merged_data %>%
+  mutate(
+    AREA_TPRT = coalesce(AREA_TPRT, AREA_TPRT.x, AREA_TPRT.x.x, AREA_TPRT.y, AREA_TPRT.y.y),
+    AREA_HMDT = coalesce(AREA_HMDT.x, AREA_HMDT.y, AREA_HMDT.x.x, AREA_HMDT.y.y),
+    AREA_WDSP = coalesce(AREA_WDSP.x, AREA_WDSP.y, AREA_WDSP.x.x, AREA_WDSP.y.y),
+    EXTN_TPRT = coalesce(EXTN_TPRT.x, EXTN_TPRT.y, EXTN_TPRT.x.x, EXTN_TPRT.y.y),
+    EXTN_WDSP = coalesce(EXTN_WDSP.x, EXTN_WDSP.y, EXTN_WDSP.x.x, EXTN_WDSP.y.y),
+    EXTN_SRQT = coalesce(EXTN_SRQT.x, EXTN_SRQT.y, EXTN_SRQT.x.x, EXTN_SRQT.y.y),
+    SPICES_NM_1 = coalesce(SPICES_NM_1.x, SPICES_NM_1.y, SPICES_NM_1.x.x, SPICES_NM_1.y.y),
+    SPICES_NM_2 = coalesce(SPICES_NM_2.x, SPICES_NM_2.y, SPICES_NM_2.x.x, SPICES_NM_2.y.y),
+    SPICES_NM_3 = coalesce(SPICES_NM_3.x, SPICES_NM_3.y, SPICES_NM_3.x.x, SPICES_NM_3.y.y),
+    HOUSE_QLFMT_CONT = coalesce(HOUSE_QLFMT_CONT.x, HOUSE_QLFMT_CONT.y, HOUSE_QLFMT_CONT.x.x, HOUSE_QLFMT_CONT.y.y),
+    HOUSE_TYPE = coalesce(HOUSE_TYPE.x, HOUSE_TYPE.y, HOUSE_TYPE.x.x, HOUSE_TYPE.y.y),
+    PLANT_AR_SQM = coalesce(PLANT_AR_SQM.x, PLANT_AR_SQM.y, PLANT_AR_SQM.x.x, PLANT_AR_SQM.y.y),
+    INDVD_NO = coalesce(INDVD_NO.x, INDVD_NO.y),
+    PLT_LNGTH = coalesce(PLT_LNGTH.x, PLT_LNGTH.y),
+    LEAF_LNGTH = coalesce(LEAF_LNGTH.x, LEAF_LNGTH.y),
+    LEAF_WDTH = coalesce(LEAF_WDTH.x, LEAF_WDTH.y),
+    STEM_THNS = coalesce(STEM_THNS.x, STEM_THNS.y),
+    INNER_TPRT = coalesce(INNER_TPRT.x, INNER_TPRT.y, INNER_TPRT.x.x, INNER_TPRT.y.y),
+    INNER_HMDT = coalesce(INNER_HMDT.x, INNER_HMDT.y, INNER_HMDT.x.x, INNER_HMDT.y.y),
+    INNER_CBDX_CTRN = coalesce(INNER_CBDX_CTRN.x, INNER_CBDX_CTRN.y, INNER_CBDX_CTRN.x.x, INNER_CBDX_CTRN.y.y),
+    SHPMN_QTY = coalesce(SHPMN_QTY.x, SHPMN_QTY.y, SHPMN_QTY.x.x, SHPMN_QTY.y.y),
+    SHPMN_AMT = coalesce(SHPMN_AMT.x, SHPMN_AMT.y)
+  ) %>%
+  # 더 이상 필요 없는 .x와 .y 열 제거
+  select(-ends_with(".x"), -ends_with(".y"), -ends_with(".x.x"), -ends_with(".y.y"))
+
+# 결과 확인
+colnames(merged_data_cleaned)
+
+melon_data <- merged_data_cleaned
+
+# MSRM_DT 열을 POSIXct 형식으로 변환
+melon_data$MSRM_DT <- as.POSIXct(melon_data$MSRM_DT, format="%Y-%m-%d %H:%M:%S")
+
+
+# 데이터 전처리 -----------------------------------------------------------------
+
+summary(External_growth_data)
+table(External_growth_data$SPICES_NM_1)
+
+summary(melon_data)
+External_growth_data <- read_excel("External_growth_data.xlsx")
+External_inner_data <- read_excel("External_inner_data.xlsx")
+External_price_data <- read_excel("External_price_data.xlsx")
+External_yield_data <- read_excel("External_yield_data.xlsx")
+Growth_yield_data <- read_excel("Growth_yield_data.xlsx")
+Inner_growth_data <- read_excel("Inner_growth_data.xlsx")
+Inner_price_data <- read_excel("Inner_price_data.xlsx")
+Inner_yield_data <- read_excel("Inner_yield_data.xlsx")
+
+
+
+External_name <- c(unique(External_growth_data$FARM_ID), unique(External_inner_data$FARM_ID), unique(External_yield_data$FARM_ID),unique(External_price_data$FARM_ID))
+Inner_name <- c(unique(Inner_growth_data$FARM_ID), unique(External_inner_data$FARM_ID), unique(Inner_yield_data$FARM_ID),unique(Inner_price_data$FARM_ID))
+Growth_name <- c(unique(External_growth_data$FARM_ID), unique(Inner_growth_data$FARM_ID), unique(Growth_yield_data$FARM_ID))
+Price_name <- c(unique(External_price_data$FARM_ID), unique(Inner_price_data$FARM_ID))
+Yield_name <- c(unique(External_yield_data$FARM_ID), unique(Inner_yield_data$FARM_ID))
+
+External_varname <- Reduce(intersect, list(
+  colnames(External_growth_data),
+  colnames(External_inner_data),
+  colnames(External_yield_data),
+  colnames(External_price_data)
+))
+Inner_varname <- Reduce(intersect, list(colnames(Inner_growth_data), colnames(External_inner_data), colnames(Inner_yield_data),colnames(Inner_price_data)))
+Growth_varname <- Reduce(intersect, list(colnames(External_growth_data), colnames(Inner_growth_data), colnames(Growth_yield_data)))
+Price_varname <- Reduce(intersect, list(colnames(External_price_data), colnames(Inner_price_data)))
+Yield_varname <- Reduce(intersect, list(colnames(External_yield_data), colnames(Inner_yield_data)))
+
+# 제외할 변수명 리스트
+exclude_columns <- c("FARM_ID", "MSRM_DT", "AREA_NM", "SPICES_NM_1", "SPICES_NM_2", "SPICES_NM_3")
+
+External_varname <- setdiff(External_varname, exclude_columns)
+Inner_varname <- setdiff(Inner_varname, exclude_columns)
+Growth_varname <- setdiff(Growth_varname, exclude_columns)
+Price_varname <- setdiff(Price_varname, exclude_columns)
+Yield_varname <- setdiff(Yield_varname, exclude_columns)
+
+
+table(Growth_yield_data$FARM_ID)
+table(melon_data$FARM_ID)
+
+
+External_data <- melon_data %>% filter(FARM_ID  %in% External_name)
+
+# AREA_TPRT (온도) 시계열 그래프
+ggplot(External_data, aes(x = MSRM_DT, y = AREA_TPRT, colour= FARM_ID)) +
+  geom_line() +
+  labs(title = "Time Series of External Temperature",
+       x = "Time",
+       y = "Temperature (°C)") +
+  theme_minimal()
+
+# AREA_HMDT (습도) 시계열 그래프
+ggplot(External_data, aes(x = MSRM_DT, y = AREA_HMDT, colour = FARM_ID)) +
+  geom_line() +
+  labs(title = "Time Series of External Humidity",
+       x = "Time",
+       y = "Humidity (%)") +
+  theme_minimal()
+
+# AREA_WDSP (풍속) 시계열 그래프
+ggplot(External_data, aes(x = MSRM_DT, y = AREA_WDSP, colour = FARM_ID)) +
+  geom_line() +
+  labs(title = "Time Series of External Wind Speed",
+       x = "Time",
+       y = "Wind Speed (m/s)") +
+  theme_minimal()
+
+# FARM_ID별로 모든 변수의 값들이 동일한지 확인
+aa <- External_data %>%
+  group_by(FARM_ID, MSRM_DT) %>%
+  summarise(across(all_of(External_varname), ~ n_distinct(.) == 1, .names = "all_same_{.col}"))
+
+# 결과 확인
+summary(aa)
+
+
+# 1. 2019년도와 2020년도로 데이터를 나누기
+data_2019 <- External_data %>%
+  filter(year(MSRM_DT) == 2019)
+
+data_2020 <- External_data %>%
+  filter(year(MSRM_DT) == 2020)
+
+# 2. 각 년도의 FARM_ID에서 첫 번째 FARM_ID만 남기고 나머지 제거
+# (데이터가 모두 같으므로 첫 번째 FARM_ID만 선택)
+data_2019_single_farm <- data_2019 %>%
+  filter(FARM_ID == unique(FARM_ID)[1])
+
+data_2020_single_farm <- data_2020 %>%
+  filter(FARM_ID == unique(FARM_ID)[1])
+
+# 3. 2019년과 2020년 데이터를 합치기
+atmostphere_data <- bind_rows(data_2019_single_farm, data_2020_single_farm)
+
+# AREA_WDSP (풍속) 시계열 그래프
+ggplot(External_data, aes(x = MSRM_DT, y = AREA_TPRT)) +
+  geom_point() +
+  labs(title = "Time Series of External Wind Speed",
+       x = "Time",
+       y = "Wind Speed (m/s)") +
+  theme_minimal()
+
+
+# 2019년 1월 데이터 필터링
+External_data_jan2019 <- External_data %>%
+  filter(year(MSRM_DT) == 2019 & month(MSRM_DT) == 1)
+
+# AREA_TPRT (온도) 시계열 그래프
+plot1 <- ggplot(External_data, aes(x = MSRM_DT, y = AREA_TPRT)) +
+  geom_line(color = "blue") +
+  labs(title = "Time Series of External Temperature",
+       x = "Time",
+       y = "Temperature (°C)") +
+  theme_minimal()
+
+# AREA_HMDT (습도) 시계열 그래프
+plot2 <- ggplot(External_data, aes(x = MSRM_DT, y = AREA_HMDT)) +
+  geom_line(color = "green") +
+  labs(title = "Time Series of External Humidity",
+       x = "Time",
+       y = "Humidity (%)") +
+  theme_minimal()
+
+# AREA_WDSP (풍속) 시계열 그래프
+plot3 <- ggplot(External_data, aes(x = MSRM_DT, y = AREA_WDSP)) +
+  geom_line(color = "red") +
+  labs(title = "Time Series of External Wind Speed",
+       x = "Time",
+       y = "Wind Speed (m/s)") +
+  theme_minimal()
+
+# 3개의 그래프를 병렬로 나열하여 출력
+grid.arrange(plot1, plot2, plot3, ncol = 1)
+
+
+Grow_setting <- melon_data %>% filter(FARM_ID %in% Growth_name)
+
+
+# 특정 예측 변수에 NA가 있는 행만 제거
+PLT_LNGTH_setting <- Grow_setting[complete.cases(Grow_setting$PLT_LNGTH), ]
+LEAF_LNGTH_setting <- Grow_setting[complete.cases(Grow_setting$LEAF_LNGTH), ]
+LEAF_WDTH_setting <- Grow_setting[complete.cases(Grow_setting$LEAF_WDTH), ]
+STEM_THNS_setting <- Grow_setting[complete.cases(Grow_setting$STEM_THNS), ]
+
+
+Growth_setting <- Grow_setting[complete.cases(Grow_setting$PLT_LNGTH, 
+                                            Grow_setting$LEAF_LNGTH, 
+                                            Grow_setting$LEAF_WDTH, 
+                                            Grow_setting$STEM_THNS), ]
+
+
+# 4개의 데이터셋과 7개의 설명 변수를 정의
+datasets <- list(PLT_LNGTH_setting, LEAF_LNGTH_setting, LEAF_WDTH_setting, STEM_THNS_setting)
+dataset_names <- c("PLT_LNGTH", "LEAF_LNGTH", "LEAF_WDTH", "STEM_THNS")
+explanatory_vars <- c("AREA_TPRT", "AREA_HMDT", "AREA_WDSP", "INNER_TPRT", "PLANT_AR_SQM", "INNER_HMDT", "INNER_CBDX_CTRN")
+
+# 산점도를 저장할 리스트 생성
+plot_list <- list()
+
+# 각 데이터셋과 설명 변수들에 대해 geom_tile() 그래프 생성
+for (i in 1:length(datasets)) {
+  for (var in explanatory_vars) {
+    # geom_tile()을 사용한 그래프 생성 후 리스트에 저장
+    p <- ggplot(datasets[[i]], aes_string(x = var, y = dataset_names[i])) +
+      geom_tile() +                                        # geom_tile 적용
+      theme_minimal() +                                    # 최소한의 테마
+      theme(axis.title = element_blank())                  # 개별 그래프의 축 제목 삭제
+    plot_list <- append(plot_list, list(p))
+  }
+}
+
+# grid.arrange()에서 xlab, ylab 추가
+grid.arrange(grobs = plot_list, ncol = 7, top = "Tile plots of Explanatory and Predictive Variables",
+             bottom = "Explanatory Variables", left = "Predictive Variables")
+
+
+# MSRM_DT 컬럼에서 연도와 월 정보 추출 (형식: "YYYY-MM")
+melon_data$YearMonth <- format(as.Date(melon_data$MSRM_DT, format="%Y-%m-%d"), "%Y-%m")
+
+
+
+# 생산량 있는 시간대 확인 -----------------------------------------------------------
+
+# 연도-월별로 SHPMN_AMT의 합계를 계산
+year_monthly_sales <- melon_data %>%
+  group_by(YearMonth, FARM_ID) %>%
+  summarise(Total_SHPMN_AMT = sum(SHPMN_AMT, na.rm = TRUE)) %>% filter(Total_SHPMN_AMT != 0)
+
+# 결과 확인
+yie1 <- year_monthly_sales %>% filter(FARM_ID == 'GBE_KRMLN_0020000u')
+yie2 <- year_monthly_sales %>% filter(FARM_ID == 'GBE_KRMLN_002000aa')
+yie3 <- year_monthly_sales %>% filter(FARM_ID == 'GBE_KRMLN_002000at')
+
+ggplot(year_monthly_sales, aes(x = YearMonth, y= Total_SHPMN_AMT, colour = FARM_ID)) +
+  geom_point(size = 4)
+
+
+# MSRM_DT를 POSIXct 형식으로 변환하여 날짜와 시간 정보를 모두 포함
+LEAF_WDTH_setting$MSRM_DT <- as.POSIXct(LEAF_WDTH_setting$MSRM_DT, format="%Y-%m-%d %H:%M:%S", tz="UTC")
+
+# ggplot 코드: x축을 연-월 형식으로만 표시
+ggplot(LEAF_WDTH_setting, aes(x = MSRM_DT, y = LEAF_WDTH, colour = FARM_ID)) +
+  geom_point() +
+  scale_x_datetime(date_labels = "%Y-%m", date_breaks = "1 month") +  # x축을 연-월 형식으로 설정
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # x축 레이블 회전
+
+
+# 날짜 컬럼에서 고유한 값들을 추출 (MSRM_DT는 날짜/시간 컬럼)
+unique_dates <- leaf_width_data %>%
+  group_by(FARM_ID, MSRM_DT) %>% 
+  select(MSRM_DT) %>%        # MSRM_DT 열만 선택
+  distinct() %>%             # 중복된 날짜를 제거
+  arrange(MSRM_DT)           # 날짜 순으로 정렬
+
+# 결과 출력
+table(unique_dates)
+
+# 날짜에서 월-일 정보만 추출 (시간 정보 제거)
+leaf_width_data$MonthDay <- format(as.Date(leaf_width_data$MSRM_DT), "%m-%d")
+
+# 고유한 월-일 정보를 추출
+unique_dates <- leaf_width_data %>%
+  select(MonthDay) %>%    # 월-일 정보 선택
+  distinct() %>%          # 중복된 월-일 제거
+  arrange(MonthDay)       # 월-일 순으로 정렬
+
+# 결과 출력
+print(unique_dates)
+
+
+
+
+
+leaf_length_data <- melon_data %>% filter(!is.na(LEAF_LNGTH))
+stem_width_data <- melon_data %>% filter(!is.na(STEM_THNS))
+
+
+# 1. MSRM_DT에서 연, 월, 일 추출
+stem_width_data <- stem_width_data %>%
+  mutate(Year = format(MSRM_DT, "%Y"),
+         Month = format(MSRM_DT, "%m"),
+         Day = format(MSRM_DT, "%d"),
+         Date = format(MSRM_DT, "%Y-%m-%d"))  # 연-월-일 형식의 새로운 컬럼 추가
+
+
+
+# 1. MSRM_DT에서 연, 월, 일 추출
+leaf_length_data <- leaf_length_data %>%
+  mutate(Year = format(MSRM_DT, "%Y"),
+         Month = format(MSRM_DT, "%m"),
+         Day = format(MSRM_DT, "%d"),
+         Date = format(MSRM_DT, "%Y-%m-%d"))  # 연-월-일 형식의 새로운 컬럼 추가
+
+
+
+# 2. farm_id와 연-월-일(Date)별로 LEAF_LNGTH, LEAF_WDTH, STEM_THNS의 평균과 분산 계산
+summary_data <- leaf_length_data %>%
+  group_by(FARM_ID, Date) %>%  # FARM_ID와 Date로 그룹화
+  summarise(
+    LEAF_LNGTH_mean = mean(LEAF_LNGTH, na.rm = TRUE),
+    LEAF_LNGTH_var = var(LEAF_LNGTH, na.rm = TRUE),
+    LEAF_WDTH_mean = mean(LEAF_WDTH, na.rm = TRUE),
+    LEAF_WDTH_var = var(LEAF_WDTH, na.rm = TRUE),
+    STEM_THNS_mean = mean(STEM_THNS, na.rm = TRUE),
+    STEM_THNS_var = var(STEM_THNS, na.rm = TRUE)
+  )
+
+summary_data$Date <- as.Date(summary_data$Date)
+
+
+# FARM_ID별, 날짜(Date)별로 그룹화한 후 정규성 테스트를 진행
+normality_test_results <- leaf_length_data %>%
+  group_by(FARM_ID, Date) %>%
+  summarise(
+    shapiro_test_leaf_length_p = ifelse(n() > 2, shapiro.test(LEAF_LNGTH)$p.value, NA),  # LEAF_LNGTH 정규성 검정
+    shapiro_test_leaf_width_p = ifelse(n() > 2, shapiro.test(LEAF_WDTH)$p.value, NA),    # LEAF_WDTH 정규성 검정
+    shapiro_test_stem_thickness_p = ifelse(n() > 2, shapiro.test(STEM_THNS)$p.value, NA) # STEM_THNS 정규성 검정
+  )
+
+normality_test_results
+
+#정규성 만족
+
+
+# 1. LEAF_LNGTH_var 값이 2 이상인 날짜를 필터링
+dates_with_high_variance <- summary_data %>%
+  filter(LEAF_LNGTH_var >= 2) %>%
+  pull(Date)  # 날짜 추출
+
+# 2. leaf_length_data에서 해당 날짜의 데이터를 필터링
+high_variance_data <- leaf_length_data %>%
+  filter(as.Date(MSRM_DT) %in% as.Date(dates_with_high_variance))
+
+# 3. 필터링된 데이터에 대해 히스토그램 생성
+ggplot(high_variance_data, aes(x = LEAF_LNGTH)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of LEAF_LNGTH for High Variance Dates",
+       x = "LEAF_LNGTH", y = "Frequency") +
+  theme_minimal()
+
+
+# 1. LEAF_LNGTH_var 값이 2 이상인 날짜를 필터링
+dates_with_high_variance <- summary_data %>%
+  filter(LEAF_LNGTH_var >= 2) %>%
+  pull(Date)  # 날짜 추출
+
+# 2. leaf_length_data에서 해당 날짜의 데이터를 필터링
+high_variance_data <- leaf_length_data %>%
+  filter(as.Date(MSRM_DT) %in% as.Date(dates_with_high_variance))
+
+# 3. 필터링된 데이터에 대해 박스플롯 생성
+ggplot(high_variance_data, aes(x = as.factor(as.Date(MSRM_DT)), y = LEAF_LNGTH)) +
+  geom_boxplot(fill = "steelblue", color = "black") +
+  labs(title = "Boxplot of LEAF_LNGTH for Dates with High Variance",
+       x = "Date", y = "LEAF_LNGTH") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # x축 레이블 회전
+
+
+
+ggplot(summary_data, aes(x = Date, y = LEAF_LNGTH_mean, color = FARM_ID)) +
+  geom_line() +
+  scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 month") +  # 날짜 형식 설정, 1개월 단위로 눈금
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # x축 레이블 회전
+
+
+ggplot(summary_data, aes(x = Date, y = LEAF_LNGTH_var, color = FARM_ID)) +
+  geom_line() +
+  scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 month") +  # 날짜 형식 설정, 1개월 단위로 눈금
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # x축 레이블 회전
+
+# 첫 번째 그래프 (왼쪽 y축: LEAF_LNGTH_mean)
+p1 <- ggplot(summary_data, aes(x = Date, y = LEAF_LNGTH_mean, color = FARM_ID)) +
+  geom_line() +
+  scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 month") +  # 날짜 형식 설정
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),            # x축 레이블 회전
+        axis.title.y = element_text(color = "blue")) +                # y축 색상 설정
+  labs(y = "LEAF_LNGTH_mean")                                         # y축 이름 설정
+
+# 두 번째 그래프 (오른쪽 y축: LEAF_LNGTH_var)
+p2 <- ggplot(summary_data, aes(x = Date, y = LEAF_LNGTH_var, color = FARM_ID)) +
+  geom_line() +
+  scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 month") +  # 날짜 형식 설정
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),            # x축 레이블 회전
+        axis.title.y = element_text(color = "red"),                   # y축 색상 설정
+        axis.text.y = element_text(color = "red")) +                  # 오른쪽 y축 레이블 색상
+  labs(y = "LEAF_LNGTH_var") +                                        # 오른쪽 y축 이름 설정
+  scale_y_continuous(position = "left")                              # y축을 오른쪽으로 이동
+
+# 두 그래프 병합
+grid.arrange(p1, p2, ncol = 1)
+
+
+# 2. farm_id와 연-월-일(Date)별로 LEAF_LNGTH, LEAF_WDTH, STEM_THNS의 평균과 분산 계산
+summary_data <- stem_width_data %>%
+  group_by(FARM_ID, Date) %>%  # FARM_ID와 Date로 그룹화
+  summarise(
+    LEAF_LNGTH_mean = mean(LEAF_LNGTH, na.rm = TRUE),
+    LEAF_LNGTH_var = var(LEAF_LNGTH, na.rm = TRUE),
+    LEAF_WDTH_mean = mean(LEAF_WDTH, na.rm = TRUE),
+    LEAF_WDTH_var = var(LEAF_WDTH, na.rm = TRUE),
+    STEM_THNS_mean = mean(STEM_THNS, na.rm = TRUE),
+    STEM_THNS_var = var(STEM_THNS, na.rm = TRUE),
+    AMT_mean = mean(SHPMN_AMT),
+    QTY_mean = mean(SHPMN_QTY)
+  )
+
+
+summary_data$Date <- as.Date(summary_data$Date)
+
+# LEAF_LNGTH_mean과 AMT_mean을 각각 다른 y축에 배치
+ggplot(summary_data, aes(x = Date)) +
+  geom_line(aes(y = LEAF_LNGTH_mean, color = FARM_ID), size = 1) +  # 왼쪽 y축: LEAF_LNGTH_mean
+  geom_point(aes(y = LEAF_LNGTH_mean, color = FARM_ID)) +           # 왼쪽 y축에 대한 점
+  scale_x_date(date_labels = "%Y-%m-%d", date_breaks = "1 month") + # x축 날짜 설정
+  scale_y_continuous(
+    name = "LEAF_LNGTH_mean",  # 왼쪽 y축 이름
+    sec.axis = sec_axis(~ ./1e5, name = "AMT_mean (scaled)")  # 오른쪽 y축: AMT_mean
+  ) +
+  geom_point(aes(y = AMT_mean / 1e5, color = FARM_ID), shape = 17, size = 2) +  # 오른쪽 y축에 점을 추가
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),   # x축 레이블 회전
+    axis.title.y = element_text(color = "blue"),         # 왼쪽 y축 색상 설정
+    axis.title.y.right = element_text(color = "red")     # 오른쪽 y축 색상 설정
+  )
+
+
+at <- melon_data %>% filter(FARM_ID == "GBE_KRMLN_002000at")
+
+at$Date <- as.Date(at$MSRM_DT)
+
+# 2x5 배열로 그래프 배치
+grid.arrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, ncol = 5, nrow = 2)
+
+
+# Date 열을 날짜 형식으로 변환
+at$Date <- as.Date(at$MSRM_DT, format="%Y-%m-%d")  # 적절한 형식으로 변환
+
+# 10개 변수 각각에 대해 마지막 날짜를 찾는 함수
+find_last_date <- function(column_name) {
+  last_date <- at %>%
+    filter(!is.na(.data[[column_name]])) %>%  # 해당 열에서 NA가 아닌 값만 필터링
+    summarise(last_date = max(Date, na.rm = TRUE))  # 마지막 날짜 계산
+  return(last_date$last_date)
+}
+
+# 10개 변수명
+selected_columns <- c("PLT_LNGTH", "LEAF_LNGTH", "LEAF_WDTH", "STEM_THNS", 
+                      "INNER_TPRT", "INNER_HMDT", "INNER_CBDX_CTRN", 
+                      "AREA_TPRT", "AREA_HMDT", "AREA_WDSP", "SHPMN_QTY", "SHPMN_AMT")
+
+# 각 변수에 대해 마지막 기록된 날짜를 찾아서 저장
+last_dates <- sapply(selected_columns, find_last_date)
+
+# 결과 출력
+at.Date(last_dates)
